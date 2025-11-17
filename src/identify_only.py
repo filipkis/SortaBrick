@@ -10,6 +10,7 @@ from pathlib import Path
 import json
 
 from api_client import BrickognizeClient, format_results_summary
+from review_generator import generate_review_html
 
 
 def identify_existing_pieces(input_dir: str, output_dir: str = "output/results",
@@ -81,6 +82,17 @@ def identify_existing_pieces(input_dir: str, output_dir: str = "output/results",
         json.dump(results, f, indent=2)
     print(f"✓ JSON results saved to: {json_file}")
 
+    # Generate HTML review
+    print("\nGenerating review page...")
+    review_file = os.path.join(output_dir, f"{dir_name}_review.html")
+    try:
+        generate_review_html(results, review_file, top_n=3)
+        print(f"✓ Review page saved to: {review_file}")
+        print(f"  Open in browser to review identifications")
+    except Exception as e:
+        print(f"⚠ Warning: Could not generate review page: {e}")
+        review_file = None
+
     # Print summary to console
     print("\n" + summary)
 
@@ -90,7 +102,8 @@ def identify_existing_pieces(input_dir: str, output_dir: str = "output/results",
         "results": results,
         "output_files": {
             "results_txt": results_file,
-            "results_json": json_file
+            "results_json": json_file,
+            "review_html": review_file
         }
     }
 

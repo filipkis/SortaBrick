@@ -11,6 +11,9 @@ ENV/
 dist/
 build/
 
+# API Keys
+.rebrickable_key
+
 # Output directories
 output/
 *.jpg

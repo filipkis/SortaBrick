@@ -10,6 +10,7 @@ from pathlib import Path
 
 from segmentation import LegoSegmenter
 from api_client import BrickognizeClient, format_results_summary
+from review_generator import generate_review_html
 
 
 def process_lego_image(input_image: str, output_dir: str = "output",
@@ -112,6 +113,17 @@ def process_lego_image(input_image: str, output_dir: str = "output",
         json.dump(results, f, indent=2)
     print(f"✓ JSON results saved to: {json_file}")
 
+    # Generate HTML review
+    print("\nStep 5: Generating review page...")
+    review_file = os.path.join(results_dir, f"{base_name}_review.html")
+    try:
+        generate_review_html(results, review_file, top_n=3)
+        print(f"✓ Review page saved to: {review_file}")
+        print(f"  Open in browser to review identifications")
+    except Exception as e:
+        print(f"⚠ Warning: Could not generate review page: {e}")
+        review_file = None
+
     # Print summary to console
     print("\n" + summary)
 
@@ -124,6 +136,7 @@ def process_lego_image(input_image: str, output_dir: str = "output",
             "pieces_dir": pieces_dir,
             "results_txt": results_file,
             "results_json": json_file,
+            "review_html": review_file,
             "visualization": vis_path if visualize else None
         }
     }

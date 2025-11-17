@@ -9,6 +9,7 @@ An automated tool for identifying LEGO pieces from photos using computer vision 
 - **Batch Processing**: Processes all detected pieces automatically
 - **Visual Feedback**: Creates annotated images showing detected pieces
 - **Detailed Results**: Exports results in both human-readable text and JSON formats
+- **Interactive Review**: Beautiful HTML review page showing your pieces side-by-side with identifications
 - **Rebrickable Integration**: Get piece IDs that can be used directly on Rebrickable
 
 ## How It Works
@@ -33,6 +34,15 @@ An automated tool for identifying LEGO pieces from photos using computer vision 
 pip install -r requirements.txt
 ```
 
+3. **Set up Rebrickable API** (required for review images):
+   - Get a free API key at https://rebrickable.com/api/
+   - Set environment variable: `export REBRICKABLE_API_KEY='your_key'`
+   - Or create `.rebrickable_key` file with your key
+   - Test setup: `python test_rebrickable.py`
+   - See [REBRICKABLE_SETUP.md](REBRICKABLE_SETUP.md) for detailed instructions
+
+   *Note: The tool works without the API key, but review pages will show placeholder images instead of actual LEGO part images.*
+
 ## Usage
 
 ### Basic Usage
@@ -49,6 +59,7 @@ python main.py ../input/your_lego_photo.jpg
    - `output/pieces/`: Individual piece images
    - `output/results/`: Identification results (text and JSON)
    - `output/results/detected_pieces.jpg`: Visualization with bounding boxes
+   - `output/results/*_review.html`: **Interactive review page - open in browser!**
 
 ### Advanced Usage
 
@@ -98,6 +109,48 @@ python identify_only.py path/to/piece/images
 python identify_only.py my_pieces --output results --category parts
 ```
 
+### Review Your Results
+
+After identification, an **interactive HTML review page** is automatically generated. Open it in your browser to:
+
+- See your captured piece image next to identified pieces
+- View official Rebrickable part images for each prediction
+- Check confidence scores with visual progress bars
+- Click through to Rebrickable or BrickLink for more details
+- Verify identifications visually before adding to your inventory
+
+**Setting up images (one-time):**
+```bash
+# Get free API key from https://rebrickable.com/api/
+export REBRICKABLE_API_KEY='your_key_here'
+
+# Or create a .rebrickable_key file
+echo "your_key_here" > .rebrickable_key
+```
+
+**Using the review:**
+```bash
+# Review page is automatically created at:
+# output/results/*_review.html
+
+# Regenerate review from existing JSON results
+python generate_review.py output/results/my_pieces_results.json
+
+# Show top 5 predictions instead of 3
+python generate_review.py results.json --top-n 5
+
+# Skip fetching images (use placeholders)
+python generate_review.py results.json --no-rebrickable
+```
+
+**Review Page Features:**
+- Side-by-side comparison of your piece and official Rebrickable images
+- Color-coded confidence scores (green for top pick)
+- Visual progress bars showing confidence levels
+- Direct links to Rebrickable and BrickLink
+- Responsive design works on desktop and mobile
+- Part names and metadata from Rebrickable
+
 ### Batch Processing Multiple Images
 
 To process multiple images at once:
@@ -127,6 +180,13 @@ Each image will be processed separately, and results will be organized in subdir
 - `input_dir`: Directory containing individual piece images (required)
 - `--output, -o`: Output directory for results (default: `output/results`)
 - `--category, -c`: Search category - `parts`, `sets`, or `figs` (default: `parts`)
+
+**generate_review.py** - Generate review from JSON results:
+- `json_file`: Path to JSON results file (required)
+- `--output, -o`: Output HTML file path (default: same directory as JSON)
+- `--top-n`: Number of predictions to show per piece (default: 3)
+- `--no-rebrickable`: Skip fetching images from Rebrickable (use placeholders)
+- `--api-key`: Rebrickable API key (optional, uses env var if not provided)
 
 ## Tips for Best Results
 
@@ -162,20 +222,38 @@ Each image will be processed separately, and results will be organized in subdir
 ```
 legosorter/
 ├── src/
-│   ├── main.py           # Main workflow (segment + identify)
-│   ├── identify_only.py  # API identification only (skip segmentation)
-│   ├── batch_process.py  # Batch processing (multiple images)
-│   ├── segmentation.py   # Image segmentation module
-│   └── api_client.py     # Brickognize API client
-├── input/                # Place your input images here
-├── output/               # Output directory (created automatically)
-│   ├── pieces/          # Extracted individual piece images
-│   └── results/         # Identification results
-├── requirements.txt      # Python dependencies
-└── README.md            # This file
+│   ├── main.py            # Main workflow (segment + identify)
+│   ├── identify_only.py   # API identification only (skip segmentation)
+│   ├── batch_process.py   # Batch processing (multiple images)
+│   ├── generate_review.py # Generate review from JSON results
+│   ├── segmentation.py    # Image segmentation module
+│   ├── api_client.py      # Brickognize API client
+│   └── review_generator.py # HTML review page generator
+├── input/                 # Place your input images here
+├── output/                # Output directory (created automatically)
+│   ├── pieces/           # Extracted individual piece images
+│   └── results/          # Identification results
+│       ├── *_results.txt # Text summary
+│       ├── *_results.json # JSON data
+│       └── *_review.html # Interactive review page
+├── requirements.txt       # Python dependencies
+└── README.md             # This file
 ```
 
 ## Output Format
+
+### HTML Review (NEW!)
+
+An interactive HTML page showing:
+- **Your captured piece images** alongside **official Rebrickable part images**
+- Top 3 predictions per piece (customizable)
+- Confidence scores with visual progress bars
+- Direct links to Rebrickable and BrickLink for each prediction
+- Color-coded rankings (gold, silver, bronze)
+- Responsive design that works on all devices
+- Part images fetched from Rebrickable API (requires free API key)
+
+**This is the recommended way to review your identifications!**
 
 ### Text Results
 
