@@ -173,13 +173,31 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
         }
         .prediction {
             display: grid;
-            grid-template-columns: 80px 150px 1fr;
+            grid-template-columns: 80px 1fr 2fr;
             gap: 15px;
             padding: 15px;
             border: 2px solid #eee;
             border-radius: 8px;
-            align-items: center;
+            align-items: start;
             transition: all 0.3s;
+        }
+        .images-container {
+            display: flex;
+            gap: 15px;
+            align-items: start;
+        }
+        .image-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .image-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         .prediction:hover {
             border-color: #667eea;
@@ -287,6 +305,10 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                 grid-template-columns: 1fr;
                 text-align: center;
             }
+            .images-container {
+                flex-direction: column;
+                align-items: center;
+            }
         }
     </style>
 </head>
@@ -354,17 +376,27 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                 item_id = item.get('id', 'Unknown')
                 item_type = item.get('type', 'part')
                 score = item.get('score', 0)
+                item_name = item.get('name', '')
+                item_category = item.get('category', '')
+
+                # Brickognize image from API results
+                brickognize_img = item.get('img_url', '')
+                if not brickognize_img:
+                    brickognize_img = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='150'><rect fill='%23eee' width='150' height='150'/><text x='50%' y='50%' text-anchor='middle' dy='.3em' fill='%23999' font-size='12'>No Image</text></svg>"
 
                 rank_class = f"rank-{rank}" if rank <= 3 else "rank-other"
                 top_class = "top" if rank == 1 else ""
 
-                # Get image URL from Rebrickable or use placeholder
+                # Get Rebrickable image URL or use placeholder
                 if item_id in part_images:
-                    part_img_url = part_images[item_id]['img_url']
-                    part_name = part_images[item_id].get('name', item_id)
+                    rebrickable_img_url = part_images[item_id]['img_url']
+                    rebrickable_name = part_images[item_id].get('name', item_id)
                 else:
-                    part_img_url = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='150'><rect fill='%23eee' width='150' height='150'/><text x='50%' y='40%' text-anchor='middle' dy='.3em' fill='%23999' font-size='12'>No Image</text><text x='50%' y='60%' text-anchor='middle' dy='.3em' fill='%23666' font-size='10'>" + item_id + "</text></svg>"
-                    part_name = item_id
+                    rebrickable_img_url = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='150'><rect fill='%23eee' width='150' height='150'/><text x='50%' y='50%' text-anchor='middle' dy='.3em' fill='%23999' font-size='12'>No Image</text></svg>"
+                    rebrickable_name = item_id
+
+                # Use Rebrickable name if item name not available
+                display_name = item_name if item_name else rebrickable_name
 
                 # Links
                 rebrickable_link = f"https://rebrickable.com/parts/{item_id}/"
@@ -373,10 +405,23 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                 html_parts.append(f'''
                 <div class="prediction {top_class}">
                     <div class="rank-badge {rank_class}">#{rank}</div>
-                    <img src="{part_img_url}" alt="{part_name}" class="pred-image" title="{part_name}">
+                    <div class="images-container">
+                        <div class="image-group">
+                            <div class="image-label">Brickognize</div>
+                            <img src="{brickognize_img}" alt="Brickognize: {item_id}" class="pred-image">
+                        </div>
+                        <div class="image-group">
+                            <div class="image-label">Rebrickable</div>
+                            <img src="{rebrickable_img_url}" alt="Rebrickable: {display_name}" class="pred-image" title="{display_name}">
+                        </div>
+                    </div>
                     <div class="pred-info">
                         <div class="pred-id">{item_id}</div>
-                        <span class="pred-type">{item_type}</span>
+                        {f'<div style="font-size: 14px; color: #4a5568; margin-bottom: 5px;"><strong>{display_name}</strong></div>' if display_name and display_name != item_id else ''}
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <span class="pred-type">{item_type}</span>
+                            {f'<span class="pred-type" style="background: #e6fffa; color: #234e52;">{item_category}</span>' if item_category else ''}
+                        </div>
                         <div class="confidence">
                             Confidence: <strong>{score * 100:.1f}%</strong>
                             <div class="confidence-bar">

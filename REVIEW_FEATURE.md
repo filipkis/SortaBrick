@@ -8,11 +8,16 @@ The review feature generates a beautiful, interactive HTML page that lets you vi
 
 ### Visual Comparison
 - **Your piece**: The actual photo you captured
-- **BrickLink images**: Official reference images for each identified piece
+- **Brickognize image**: Image from Brickognize API results
+- **Rebrickable image**: Official reference image from Rebrickable database
 - Side-by-side layout for easy comparison
 
 ### Identification Details
 - Top 3 predictions per piece (or configure with `--top-n`)
+- **Part name** from Rebrickable database
+- **Category** information for each part
+- **Part ID** (compatible with Rebrickable)
+- **Type** (part, set, or minifig)
 - Confidence scores (percentage)
 - Visual progress bars showing confidence
 - Color-coded rankings:
@@ -81,29 +86,32 @@ start output/results/my_pieces_review.html
 ## Review Page Layout
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  🔍 LEGO Piece Identification Review                │
-│  Total: 15 | Success: 14 | Failed: 1                │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  🔍 LEGO Piece Identification Review                             │
+│  Total: 15 | Success: 14 | Failed: 1                             │
+└──────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────┐
-│  #1 Piece 1                          piece_001.jpg  │
-├──────────────┬──────────────────────────────────────┤
-│              │  #1  [BrickLink Image]  3001         │
-│  YOUR PIECE  │      part                            │
-│  [Your      │      Confidence: 95.3%  ████████████ │
-│   Photo]     │      [Rebrickable] [BrickLink]       │
-│              │                                       │
-│              │  #2  [BrickLink Image]  3002         │
-│              │      part                            │
-│              │      Confidence: 78.2%  ████████     │
-│              │      [Rebrickable] [BrickLink]       │
-│              │                                       │
-│              │  #3  [BrickLink Image]  3003         │
-│              │      part                            │
-│              │      Confidence: 45.1%  █████        │
-│              │      [Rebrickable] [BrickLink]       │
-└──────────────┴──────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  #1 Piece 1                                      piece_001.jpg   │
+├──────────────┬───────────────────────────────────────────────────┤
+│              │  #1  [Brickognize] [Rebrickable]  3001            │
+│  YOUR PIECE  │      Brick 2 x 4                                  │
+│  [Your      │      part | Bricks                                │
+│   Photo]     │      Confidence: 95.3%  ████████████              │
+│              │      [Rebrickable] [BrickLink]                    │
+│              │                                                    │
+│              │  #2  [Brickognize] [Rebrickable]  3002            │
+│              │      Brick 2 x 3                                  │
+│              │      part | Bricks                                │
+│              │      Confidence: 78.2%  ████████                  │
+│              │      [Rebrickable] [BrickLink]                    │
+│              │                                                    │
+│              │  #3  [Brickognize] [Rebrickable]  3003            │
+│              │      Brick 2 x 2                                  │
+│              │      part | Bricks                                │
+│              │      Confidence: 45.1%  █████                     │
+│              │      [Rebrickable] [BrickLink]                    │
+└──────────────┴───────────────────────────────────────────────────┘
 
 [Repeat for each piece...]
 ```
