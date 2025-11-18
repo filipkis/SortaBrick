@@ -43,15 +43,74 @@ class RebrickableClient:
             time.sleep(self.min_request_interval - time_since_last)
         self.last_request_time = time.time()
 
+    def search_by_bricklink_id(self, bricklink_id: str) -> list:
+        """
+        Search for parts by BrickLink ID using Rebrickable's search API.
+        This handles variants like "3068" finding "3068a", "3068b", etc.
+
+        Args:
+            bricklink_id: The BrickLink part ID (e.g., "3068")
+
+        Returns:
+            List of matching parts (may be empty, one, or multiple)
+        """
+        # Check cache first
+        cache_key = f"bl_{bricklink_id}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+
+        # Rate limit
+        self._rate_limit()
+
+        url = f"{self.base_url}/parts/"
+        params = {
+            'bricklink_id': bricklink_id,
+            'page_size': 10  # Limit results
+        }
+
+        try:
+            response = requests.get(url, headers=self.headers, params=params, timeout=10)
+
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get('results', [])
+
+                # Extract relevant info for each result
+                parts = []
+                for item in results:
+                    part_info = {
+                        'part_num': item.get('part_num'),
+                        'name': item.get('name'),
+                        'part_img_url': item.get('part_img_url'),
+                        'part_url': item.get('part_url'),
+                        'category_id': item.get('part_cat_id'),
+                        'material': item.get('part_material'),
+                        'bricklink_id': bricklink_id
+                    }
+                    parts.append(part_info)
+
+                # Cache the results
+                self.cache[cache_key] = parts
+                return parts
+            else:
+                print(f"Warning: Rebrickable search API returned status {response.status_code} for {bricklink_id}")
+                self.cache[cache_key] = []
+                return []
+
+        except requests.exceptions.RequestException as e:
+            print(f"Warning: Failed to search Rebrickable for {bricklink_id}: {e}")
+            return []
+
     def get_part_info(self, part_num: str) -> Optional[Dict]:
         """
         Get part information including image URL from Rebrickable.
+        First tries direct lookup, then searches by BrickLink ID if not found.
 
         Args:
             part_num: The part number (e.g., "3001")
 
         Returns:
-            Dictionary with part info including 'part_img_url' or None if not found
+            Dictionary with part info or list of alternatives if multiple found
         """
         # Check cache first
         if part_num in self.cache:
@@ -74,15 +133,27 @@ class RebrickableClient:
                     'part_img_url': data.get('part_img_url'),
                     'part_url': data.get('part_url'),
                     'category_id': data.get('part_cat_id'),
-                    'material': data.get('part_material')
+                    'material': data.get('part_material'),
+                    'variants': []  # No variants when direct match
                 }
                 # Cache the result
                 self.cache[part_num] = part_info
                 return part_info
             elif response.status_code == 404:
-                # Part not found
-                self.cache[part_num] = None
-                return None
+                # Part not found by exact match, try BrickLink ID search
+                print(f"Part {part_num} not found by exact match, searching by BrickLink ID...")
+                variants = self.search_by_bricklink_id(part_num)
+
+                if variants:
+                    # Return first variant as main, include all as alternatives
+                    result = variants[0].copy()
+                    result['variants'] = variants[1:] if len(variants) > 1 else []
+                    result['original_id'] = part_num
+                    self.cache[part_num] = result
+                    return result
+                else:
+                    self.cache[part_num] = None
+                    return None
             else:
                 print(f"Warning: Rebrickable API returned status {response.status_code} for part {part_num}")
                 return None

@@ -59,12 +59,15 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                 # Fetch all part info
                 if part_nums:
                     part_data = client.get_parts_batch(list(part_nums))
-                    # Extract image URLs
+                    # Store full part data (including variants if available)
                     for part_num, data in part_data.items():
                         if data and data.get('part_img_url'):
                             part_images[part_num] = {
                                 'img_url': data['part_img_url'],
-                                'name': data.get('name', '')
+                                'name': data.get('name', ''),
+                                'part_num': data.get('part_num', part_num),
+                                'variants': data.get('variants', []),
+                                'original_id': data.get('original_id', part_num)
                             }
                     print(f"✓ Fetched images for {len(part_images)} parts")
                 else:
@@ -473,9 +476,13 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                 top_class = "top" if rank == 1 else ""
 
                 # Get Rebrickable image URL or use placeholder
+                matched_part_num = item_id
+                part_variants = []
                 if item_id in part_images:
                     rebrickable_img_url = part_images[item_id]['img_url']
                     rebrickable_name = part_images[item_id].get('name', item_id)
+                    matched_part_num = part_images[item_id].get('part_num', item_id)
+                    part_variants = part_images[item_id].get('variants', [])
                 else:
                     rebrickable_img_url = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='150'><rect fill='%23eee' width='150' height='150'/><text x='50%' y='50%' text-anchor='middle' dy='.3em' fill='%23999' font-size='12'>No Image</text></svg>"
                     rebrickable_name = item_id
@@ -483,8 +490,8 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                 # Use Rebrickable name if item name not available
                 display_name = item_name if item_name else rebrickable_name
 
-                # Links
-                rebrickable_link = f"https://rebrickable.com/parts/{item_id}/"
+                # Links (use matched part number for Rebrickable, original for BrickLink)
+                rebrickable_link = f"https://rebrickable.com/parts/{matched_part_num}/"
                 bricklink_link = f"https://www.bricklink.com/v2/catalog/catalogitem.page?P={item_id}"
 
                 # Auto-select if it's the only prediction or first with high confidence
@@ -493,7 +500,7 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                 checked_attr = "checked" if should_preselect else ""
 
                 html_parts.append(f'''
-                <div class="prediction {top_class} {selected_class}" data-piece-idx="{piece_index}" data-part-id="{item_id}" data-rank="{rank}">
+                <div class="prediction {top_class} {selected_class}" data-piece-idx="{piece_index}" data-part-id="{matched_part_num}" data-rank="{rank}">
                     <div class="rank-badge {rank_class}">#{rank}</div>
                     <div class="images-container">
                         <div class="image-group">
@@ -506,8 +513,8 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                         </div>
                     </div>
                     <div class="pred-info">
-                        <div class="pred-id">{item_id}</div>
-                        {f'<div style="font-size: 14px; color: #4a5568; margin-bottom: 5px;"><strong>{display_name}</strong></div>' if display_name and display_name != item_id else ''}
+                        <div class="pred-id">{matched_part_num}{f' <span style="font-size: 12px; color: #718096;">(BrickLink: {item_id})</span>' if matched_part_num != item_id else ''}</div>
+                        {f'<div style="font-size: 14px; color: #4a5568; margin-bottom: 5px;"><strong>{display_name}</strong></div>' if display_name and display_name != matched_part_num else ''}
                         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                             <span class="pred-type">{item_type}</span>
                             {f'<span class="pred-type" style="background: #e6fffa; color: #234e52;">{item_category}</span>' if item_category else ''}
@@ -527,7 +534,7 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                                    class="select-checkbox"
                                    id="select_{piece_index}_{rank}"
                                    data-piece-idx="{piece_index}"
-                                   data-part-id="{item_id}"
+                                   data-part-id="{matched_part_num}"
                                    {checked_attr}
                                    onchange="handleSelection(this)">
                             <label for="select_{piece_index}_{rank}" style="font-weight: 600; cursor: pointer;">
@@ -538,7 +545,7 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                             <label style="font-weight: 600; min-width: 60px;">Color:</label>
                             <select class="color-selector"
                                     id="color_{piece_index}_{rank}"
-                                    data-part-id="{item_id}"
+                                    data-part-id="{matched_part_num}"
                                     {'' if should_preselect else 'disabled'}>
                                 <option value="">Loading colors...</option>
                             </select>
@@ -555,6 +562,80 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                     </div>
                 </div>
 ''')
+
+                # Add variant alternatives if they exist
+                if part_variants:
+                    html_parts.append(f'''
+                <div style="margin-left: 95px; margin-top: 10px; padding-left: 15px; border-left: 3px solid #e2e8f0;">
+                    <div style="font-size: 12px; font-weight: 600; color: #718096; margin-bottom: 10px;">
+                        ⚡ ALTERNATIVE VARIANTS FOR {item_id}:
+                    </div>
+''')
+                    for variant_idx, variant in enumerate(part_variants):
+                        variant_part_num = variant.get('part_num', '')
+                        variant_name = variant.get('name', '')
+                        variant_img_url = variant.get('part_img_url', '')
+
+                        if not variant_img_url:
+                            variant_img_url = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect fill='%23eee' width='100' height='100'/><text x='50%' y='50%' text-anchor='middle' dy='.3em' fill='%23999' font-size='10'>No Image</text></svg>"
+
+                        variant_rebrickable_link = f"https://rebrickable.com/parts/{variant_part_num}/"
+                        variant_bricklink_link = f"https://www.bricklink.com/v2/catalog/catalogitem.page?P={variant_part_num}"
+
+                        variant_rank_id = f"{rank}_var{variant_idx}"
+
+                        html_parts.append(f'''
+                    <div class="prediction" style="border-color: #cbd5e0; background: #f7fafc; margin-bottom: 10px;" data-piece-idx="{piece_index}" data-part-id="{variant_part_num}" data-rank="{variant_rank_id}">
+                        <div style="width: 30px; height: 30px; border-radius: 50%; background: #cbd5e0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #4a5568; font-weight: bold;">V{variant_idx + 1}</div>
+                        <div class="images-container">
+                            <div class="image-group">
+                                <div class="image-label">Rebrickable</div>
+                                <img src="{variant_img_url}" alt="Rebrickable: {variant_name}" class="pred-image" style="width: 100px; height: 100px;" title="{variant_name}">
+                            </div>
+                        </div>
+                        <div class="pred-info">
+                            <div class="pred-id" style="font-size: 16px;">{variant_part_num}</div>
+                            {f'<div style="font-size: 13px; color: #4a5568; margin-bottom: 5px;"><strong>{variant_name}</strong></div>' if variant_name and variant_name != variant_part_num else ''}
+                            <div class="links">
+                                <a href="{variant_rebrickable_link}" target="_blank" class="link-btn" style="font-size: 11px; padding: 4px 10px;">Rebrickable</a>
+                                <a href="{variant_bricklink_link}" target="_blank" class="link-btn" style="font-size: 11px; padding: 4px 10px;">BrickLink</a>
+                            </div>
+                            <div class="selection-controls" style="margin-top: 8px;">
+                                <input type="checkbox"
+                                       class="select-checkbox"
+                                       id="select_{piece_index}_{variant_rank_id}"
+                                       data-piece-idx="{piece_index}"
+                                       data-part-id="{variant_part_num}"
+                                       onchange="handleSelection(this)">
+                                <label for="select_{piece_index}_{variant_rank_id}" style="font-weight: 600; cursor: pointer; font-size: 13px;">
+                                    Select this variant
+                                </label>
+                            </div>
+                            <div class="selection-controls" style="margin-top: 8px;">
+                                <label style="font-weight: 600; min-width: 60px; font-size: 13px;">Color:</label>
+                                <select class="color-selector"
+                                        id="color_{piece_index}_{variant_rank_id}"
+                                        data-part-id="{variant_part_num}"
+                                        style="font-size: 12px;"
+                                        disabled>
+                                    <option value="">Loading colors...</option>
+                                </select>
+                            </div>
+                            <div class="selection-controls" style="margin-top: 8px;">
+                                <label style="font-weight: 600; min-width: 60px; font-size: 13px;">Quantity:</label>
+                                <input type="number"
+                                       class="quantity-input"
+                                       id="qty_{piece_index}_{variant_rank_id}"
+                                       min="1"
+                                       value="1"
+                                       style="font-size: 12px;"
+                                       disabled>
+                            </div>
+                        </div>
+                    </div>
+''')
+
+                    html_parts.append('                </div>\n')
 
         html_parts.append('            </div>\n        </div>\n    </div>\n')
 
@@ -620,6 +701,9 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                 const rank = checkbox.id.split('_')[2];
                 document.getElementById(`color_${pieceIdx}_${rank}`).disabled = false;
                 document.getElementById(`qty_${pieceIdx}_${rank}`).disabled = false;
+
+                // Fetch colors for this part if not already cached
+                fetchColorsForPart(partId);
 
                 // Store selection
                 selections[pieceIdx] = {
