@@ -9,7 +9,7 @@ An automated tool for identifying LEGO pieces from photos using computer vision 
 - **Batch Processing**: Processes all detected pieces automatically
 - **Visual Feedback**: Creates annotated images showing detected pieces
 - **Detailed Results**: Exports results in both human-readable text and JSON formats
-- **Interactive Review**: Beautiful HTML review page showing your pieces side-by-side with identifications
+- **Interactive Review**: Fully interactive HTML review page with selection, color picking, and direct Rebrickable import
 - **Rebrickable Integration**: Get piece IDs that can be used directly on Rebrickable
 
 ## How It Works
@@ -111,13 +111,16 @@ python identify_only.py my_pieces --output results --category parts
 
 ### Review Your Results
 
-After identification, an **interactive HTML review page** is automatically generated. Open it in your browser to:
+After identification, an **fully interactive HTML review page** is automatically generated. Open it in your browser to:
 
 - See your captured piece image next to identified pieces
-- View official Rebrickable part images for each prediction
+- View Brickognize and Rebrickable images side-by-side
+- **Select the correct identification** with checkboxes
+- **Choose part color** from Rebrickable's available colors
+- **Set quantity** for each part
+- **Import directly to Rebrickable** with one click
+- Save and export your selections
 - Check confidence scores with visual progress bars
-- Click through to Rebrickable or BrickLink for more details
-- Verify identifications visually before adding to your inventory
 
 **Setting up images (one-time):**
 ```bash

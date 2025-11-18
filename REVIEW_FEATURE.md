@@ -1,8 +1,8 @@
-# Review Feature
+# Interactive Review Feature
 
 ## Overview
 
-The review feature generates a beautiful, interactive HTML page that lets you visually confirm LEGO piece identifications before adding them to your collection.
+The review feature generates a beautiful, fully interactive HTML page that lets you visually confirm LEGO piece identifications, select colors, and import directly to your Rebrickable collection - all from your browser!
 
 ## What You Get
 
@@ -30,8 +30,19 @@ The review feature generates a beautiful, interactive HTML page that lets you vi
 - Click through to **BrickLink** to check availability and pricing
 - No need to manually search for part numbers
 
+### Interactive Features (NEW!)
+- ✅ **Select correct identification** - checkboxes to confirm which prediction is right
+- 🎨 **Color picker** - dropdown with all available colors from Rebrickable
+- 🔢 **Quantity input** - specify how many of each piece you have
+- 💾 **Auto-save** - selections saved to browser localStorage
+- 📤 **Export** - save selections as JSON
+- 🚀 **Direct import** - add parts to Rebrickable with one click
+
 ### Convenience
-- Works offline (images embedded in HTML)
+- Auto-selects first prediction if only one option or high confidence (>70%)
+- Works with Rebrickable API to fetch real-time color availability
+- Color options show number of sets each color appears in
+- Selections persist between sessions (localStorage)
 - Responsive design (works on phone, tablet, desktop)
 - Professional styling with gradient colors
 - Easy to navigate and review
@@ -82,6 +93,43 @@ xdg-open output/results/my_pieces_review.html
 # Windows
 start output/results/my_pieces_review.html
 ```
+
+## Interactive Workflow
+
+### 1. Initial Load
+- Review page opens in your browser
+- If you have pieces with only one prediction or high confidence (>70%), they're auto-selected
+- You'll be prompted for your Rebrickable API key (one-time setup)
+
+### 2. Review and Select
+For each piece:
+- **Check the prediction** - Look at both Brickognize and Rebrickable images
+- **Select correct match** - Click checkbox next to the correct identification
+  - Only one prediction per piece can be selected
+  - Uncheck to deselect if none match
+- **Choose color** - Dropdown automatically loads available colors from Rebrickable
+  - Colors show as "(color name) (X sets)" where X = number of sets with that color
+  - Color swatch displayed for visual reference
+- **Set quantity** - Enter how many pieces you have (default: 1)
+
+### 3. Actions
+Bottom action bar shows:
+- **Selection count** - "X pieces selected"
+- **💾 Save Selections** - Download your selections as JSON (backup)
+- **📥 Export JSON** - Export formatted data for external tools
+- **🚀 Import to Rebrickable** - Push selected parts directly to your Rebrickable account
+
+### 4. Import to Rebrickable
+When you click "Import to Rebrickable":
+1. Optionally enter a user set ID (to add parts to a specific set)
+2. Confirm import
+3. Watch progress as parts are added
+4. See success/failure summary
+
+**Requirements:**
+- Rebrickable API key (free from https://rebrickable.com/api/)
+- Color must be selected for each part
+- Internet connection
 
 ## Review Page Layout
 

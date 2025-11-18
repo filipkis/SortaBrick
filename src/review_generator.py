@@ -297,6 +297,91 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
             border-radius: 8px;
             border: 1px solid #fc8181;
         }
+        /* Interactive selection styles */
+        .selection-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .select-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        .color-selector {
+            padding: 6px 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 5px;
+            background: white;
+            font-size: 13px;
+            cursor: pointer;
+            min-width: 150px;
+        }
+        .color-selector:disabled {
+            background: #f7fafc;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .prediction.selected {
+            border-color: #48bb78;
+            background: #f0fff4;
+            box-shadow: 0 0 0 3px rgba(72, 187, 120, 0.1);
+        }
+        .quantity-input {
+            width: 60px;
+            padding: 6px;
+            border: 2px solid #e2e8f0;
+            border-radius: 5px;
+            font-size: 13px;
+            text-align: center;
+        }
+        .action-bar {
+            position: sticky;
+            bottom: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 -4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+        }
+        .action-btn {
+            padding: 12px 24px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .action-btn.primary {
+            background: #48bb78;
+            color: white;
+        }
+        .action-btn.primary:hover {
+            background: #38a169;
+        }
+        .selection-summary {
+            color: white;
+            font-size: 14px;
+        }
         @media (max-width: 768px) {
             .piece-content {
                 grid-template-columns: 1fr;
@@ -402,8 +487,13 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                 rebrickable_link = f"https://rebrickable.com/parts/{item_id}/"
                 bricklink_link = f"https://www.bricklink.com/v2/catalog/catalogitem.page?P={item_id}"
 
+                # Auto-select if it's the only prediction or first with high confidence
+                should_preselect = (len(items) == 1) or (rank == 1 and score > 0.7)
+                selected_class = "selected" if should_preselect else ""
+                checked_attr = "checked" if should_preselect else ""
+
                 html_parts.append(f'''
-                <div class="prediction {top_class}">
+                <div class="prediction {top_class} {selected_class}" data-piece-idx="{piece_index}" data-part-id="{item_id}" data-rank="{rank}">
                     <div class="rank-badge {rank_class}">#{rank}</div>
                     <div class="images-container">
                         <div class="image-group">
@@ -432,13 +522,318 @@ def generate_review_html(results: List[Dict], output_path: str, top_n: int = 3,
                             <a href="{rebrickable_link}" target="_blank" class="link-btn">Rebrickable</a>
                             <a href="{bricklink_link}" target="_blank" class="link-btn">BrickLink</a>
                         </div>
+                        <div class="selection-controls">
+                            <input type="checkbox"
+                                   class="select-checkbox"
+                                   id="select_{piece_index}_{rank}"
+                                   data-piece-idx="{piece_index}"
+                                   data-part-id="{item_id}"
+                                   {checked_attr}
+                                   onchange="handleSelection(this)">
+                            <label for="select_{piece_index}_{rank}" style="font-weight: 600; cursor: pointer;">
+                                Select this piece
+                            </label>
+                        </div>
+                        <div class="selection-controls" style="margin-top: 8px;">
+                            <label style="font-weight: 600; min-width: 60px;">Color:</label>
+                            <select class="color-selector"
+                                    id="color_{piece_index}_{rank}"
+                                    data-part-id="{item_id}"
+                                    {'' if should_preselect else 'disabled'}>
+                                <option value="">Loading colors...</option>
+                            </select>
+                        </div>
+                        <div class="selection-controls" style="margin-top: 8px;">
+                            <label style="font-weight: 600; min-width: 60px;">Quantity:</label>
+                            <input type="number"
+                                   class="quantity-input"
+                                   id="qty_{piece_index}_{rank}"
+                                   min="1"
+                                   value="1"
+                                   {'' if should_preselect else 'disabled'}>
+                        </div>
                     </div>
                 </div>
 ''')
 
         html_parts.append('            </div>\n        </div>\n    </div>\n')
 
+    # Add action bar and JavaScript
     html_parts.append('''
+    <div class="action-bar">
+        <div class="selection-summary">
+            <strong id="selection-count">0</strong> pieces selected
+        </div>
+        <div class="action-buttons">
+            <button class="action-btn" onclick="saveSelections()">💾 Save Selections</button>
+            <button class="action-btn" onclick="exportJSON()">📥 Export JSON</button>
+            <button class="action-btn primary" onclick="importToRebrickable()" id="import-btn" disabled>
+                🚀 Import to Rebrickable
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Store API key and selections
+        let rebrickableApiKey = localStorage.getItem('rebrickable_api_key') || '';
+        let selections = JSON.parse(localStorage.getItem('lego_selections') || '{}');
+        let colorCache = {};
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSavedSelections();
+            fetchAllColors();
+            updateSelectionCount();
+            checkApiKey();
+        });
+
+        function checkApiKey() {
+            if (!rebrickableApiKey) {
+                rebrickableApiKey = prompt('Enter your Rebrickable API key (get it from https://rebrickable.com/api/)\\nLeave blank to skip import feature:');
+                if (rebrickableApiKey) {
+                    localStorage.setItem('rebrickable_api_key', rebrickableApiKey);
+                }
+            }
+            document.getElementById('import-btn').disabled = !rebrickableApiKey;
+        }
+
+        function handleSelection(checkbox) {
+            const pieceIdx = checkbox.dataset.pieceIdx;
+            const partId = checkbox.dataset.partId;
+            const predictionDiv = checkbox.closest('.prediction');
+
+            // Uncheck other checkboxes for this piece
+            document.querySelectorAll(`input[data-piece-idx="${pieceIdx}"]`).forEach(cb => {
+                if (cb !== checkbox) {
+                    cb.checked = false;
+                    cb.closest('.prediction').classList.remove('selected');
+                    // Disable color/quantity for unselected
+                    const rank = cb.id.split('_')[2];
+                    document.getElementById(`color_${pieceIdx}_${rank}`).disabled = true;
+                    document.getElementById(`qty_${pieceIdx}_${rank}`).disabled = true;
+                }
+            });
+
+            // Update selected prediction
+            if (checkbox.checked) {
+                predictionDiv.classList.add('selected');
+                const rank = checkbox.id.split('_')[2];
+                document.getElementById(`color_${pieceIdx}_${rank}`).disabled = false;
+                document.getElementById(`qty_${pieceIdx}_${rank}`).disabled = false;
+
+                // Store selection
+                selections[pieceIdx] = {
+                    partId: partId,
+                    color: document.getElementById(`color_${pieceIdx}_${rank}`).value,
+                    quantity: parseInt(document.getElementById(`qty_${pieceIdx}_${rank}`).value) || 1
+                };
+            } else {
+                predictionDiv.classList.remove('selected');
+                delete selections[pieceIdx];
+            }
+
+            updateSelectionCount();
+            localStorage.setItem('lego_selections', JSON.stringify(selections));
+        }
+
+        function updateSelectionCount() {
+            const count = Object.keys(selections).length;
+            document.getElementById('selection-count').textContent = count;
+            document.getElementById('import-btn').disabled = count === 0 || !rebrickableApiKey;
+        }
+
+        async function fetchAllColors() {
+            // Get all unique part IDs that are selected
+            const partIds = new Set();
+            document.querySelectorAll('.select-checkbox:checked').forEach(cb => {
+                partIds.add(cb.dataset.partId);
+            });
+
+            for (const partId of partIds) {
+                await fetchColorsForPart(partId);
+            }
+        }
+
+        async function fetchColorsForPart(partId) {
+            if (colorCache[partId] || !rebrickableApiKey) return;
+
+            try {
+                const response = await fetch(
+                    `https://rebrickable.com/api/v3/lego/parts/${partId}/colors/`,
+                    {
+                        headers: {
+                            'Authorization': `key ${rebrickableApiKey}`,
+                            'Accept': 'application/json'
+                        }
+                    }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    colorCache[partId] = data.results || [];
+                    updateColorSelectors(partId);
+                }
+            } catch (error) {
+                console.error(`Error fetching colors for ${partId}:`, error);
+            }
+        }
+
+        function updateColorSelectors(partId) {
+            const selectors = document.querySelectorAll(`select[data-part-id="${partId}"]`);
+            const colors = colorCache[partId] || [];
+
+            selectors.forEach(select => {
+                select.innerHTML = '<option value="">Select color...</option>';
+                colors.forEach(color => {
+                    const option = document.createElement('option');
+                    option.value = color.color_id;
+                    option.textContent = `${color.color_name} (${color.num_sets} sets)`;
+                    option.style.backgroundColor = `#${color.rgb || 'ffffff'}`;
+                    select.appendChild(option);
+                });
+
+                // Restore saved selection if any
+                const pieceIdx = select.id.split('_')[1];
+                if (selections[pieceIdx] && selections[pieceIdx].color) {
+                    select.value = selections[pieceIdx].color;
+                }
+
+                // Add change listener
+                select.addEventListener('change', function() {
+                    const rank = this.id.split('_')[2];
+                    const checkbox = document.getElementById(`select_${pieceIdx}_${rank}`);
+                    if (checkbox.checked) {
+                        selections[pieceIdx].color = this.value;
+                        localStorage.setItem('lego_selections', JSON.stringify(selections));
+                    }
+                });
+            });
+        }
+
+        function loadSavedSelections() {
+            for (const [pieceIdx, data] of Object.entries(selections)) {
+                // Find and check the checkbox
+                const partId = data.partId;
+                const checkbox = document.querySelector(`input[data-piece-idx="${pieceIdx}"][data-part-id="${partId}"]`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                    handleSelection(checkbox);
+                }
+            }
+        }
+
+        function saveSelections() {
+            const blob = new Blob([JSON.stringify(selections, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'lego_selections.json';
+            a.click();
+            alert('Selections saved to lego_selections.json');
+        }
+
+        function exportJSON() {
+            const exportData = {
+                timestamp: new Date().toISOString(),
+                totalPieces: Object.keys(selections).length,
+                pieces: []
+            };
+
+            for (const [pieceIdx, data] of Object.entries(selections)) {
+                const qtyInput = document.querySelector(`input.quantity-input:not([disabled])`);
+                exportData.pieces.push({
+                    pieceIndex: parseInt(pieceIdx),
+                    partId: data.partId,
+                    colorId: data.color,
+                    quantity: data.quantity || 1
+                });
+            }
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `lego_export_${Date.now()}.json`;
+            a.click();
+            alert(`Exported ${exportData.totalPieces} pieces to JSON`);
+        }
+
+        async function importToRebrickable() {
+            if (!rebrickableApiKey) {
+                alert('Please set your Rebrickable API key first');
+                checkApiKey();
+                return;
+            }
+
+            if (Object.keys(selections).length === 0) {
+                alert('No pieces selected to import');
+                return;
+            }
+
+            const userSetId = prompt('Enter your Rebrickable user set ID (or leave blank to skip)\\nFind it at: https://rebrickable.com/users/YOUR_USERNAME/sets/');
+
+            if (!confirm(`Import ${Object.keys(selections).length} pieces to Rebrickable?`)) {
+                return;
+            }
+
+            const importBtn = document.getElementById('import-btn');
+            importBtn.disabled = true;
+            importBtn.textContent = '⏳ Importing...';
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const [pieceIdx, data] of Object.entries(selections)) {
+                if (!data.color) {
+                    console.warn(`Skipping piece ${pieceIdx}: no color selected`);
+                    failCount++;
+                    continue;
+                }
+
+                try {
+                    // Add part to user's collection
+                    const payload = {
+                        part_num: data.partId,
+                        color_id: parseInt(data.color),
+                        quantity: data.quantity || 1
+                    };
+
+                    const endpoint = userSetId
+                        ? `https://rebrickable.com/api/v3/users/me/sets/${userSetId}/parts/`
+                        : 'https://rebrickable.com/api/v3/users/me/parts/';
+
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `key ${rebrickableApiKey}`,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        successCount++;
+                    } else {
+                        console.error(`Failed to import piece ${pieceIdx}:`, await response.text());
+                        failCount++;
+                    }
+
+                    // Rate limiting
+                    await new Promise(resolve => setTimeout(resolve, 200));
+
+                } catch (error) {
+                    console.error(`Error importing piece ${pieceIdx}:`, error);
+                    failCount++;
+                }
+            }
+
+            importBtn.disabled = false;
+            importBtn.textContent = '🚀 Import to Rebrickable';
+
+            alert(`Import complete!\\n✓ Success: ${successCount}\\n✗ Failed: ${failCount}`);
+        }
+    </script>
 </body>
 </html>''')
 
